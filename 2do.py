@@ -1,12 +1,13 @@
-from flask import Flask, request, redirect, url_for
-from flask import render_template_string
+import os
+from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
 
+# In-memory list to store todos
 todos = []
 
-# HTML templates as strings
-INDEX_HTML = """
+# HTML templates inline
+index_template = """
 <!DOCTYPE html>
 <html>
   <head>
@@ -18,7 +19,7 @@ INDEX_HTML = """
     <ul>
       {% for todo in todos %}
         <li>
-          <input type="checkbox" {% if todo['done'] %}checked{% endif %} onclick="location.href='{{ url_for('toggle', index=loop.index0) }}'">
+          <input type="checkbox" {% if todo['done'] %}checked{% endif %} onchange="location.href='{{ url_for('check', index=loop.index0) }}'">
           <span {% if todo['done'] %}style="text-decoration: line-through"{% endif %}>{{ todo['task'] }}</span>
           <a href="{{ url_for('edit', index=loop.index0) }}">edit</a>
           <a href="{{ url_for('delete', index=loop.index0) }}">delete</a>
@@ -26,14 +27,14 @@ INDEX_HTML = """
       {% endfor %}
     </ul>
     <form action="{{ url_for('add') }}" method="post">
-      <input type="text" name="task" required>
+      <input type="text" name="todo" required>
       <button type="submit">Add</button>
     </form>
   </body>
 </html>
 """
 
-EDIT_HTML = """
+edit_template = """
 <!DOCTYPE html>
 <html>
   <head>
@@ -43,7 +44,7 @@ EDIT_HTML = """
   <body>
     <h1>Edit Todo</h1>
     <form action="{{ url_for('edit', index=index) }}" method="post">
-      <input type="text" name="task" value="{{ todo['task'] }}" required>
+      <input type="text" name="todo" value="{{ todo['task'] }}" required>
       <button type="submit">Save</button>
     </form>
   </body>
@@ -52,25 +53,26 @@ EDIT_HTML = """
 
 @app.route('/')
 def index():
-    return render_template_string(INDEX_HTML, todos=todos)
+    return render_template_string(index_template, todos=todos)
 
 @app.route('/add', methods=['POST'])
 def add():
-    task = request.form['task']
-    todos.append({'task': task, 'done': False})
-    return redirect(url_for('index'))
-
-@app.route('/toggle/<int:index>')
-def toggle(index):
-    todos[index]['done'] = not todos[index]['done']
+    todo = request.form['todo']
+    todos.append({'task': todo, 'done': False})
     return redirect(url_for('index'))
 
 @app.route('/edit/<int:index>', methods=['GET', 'POST'])
 def edit(index):
+    todo = todos[index]
     if request.method == 'POST':
-        todos[index]['task'] = request.form['task']
+        todo['task'] = request.form['todo']
         return redirect(url_for('index'))
-    return render_template_string(EDIT_HTML, todo=todos[index], index=index)
+    return render_template_string(edit_template, todo=todo, index=index)
+
+@app.route('/check/<int:index>')
+def check(index):
+    todos[index]['done'] = not todos[index]['done']
+    return redirect(url_for('index'))
 
 @app.route('/delete/<int:index>')
 def delete(index):
@@ -78,4 +80,6 @@ def delete(index):
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Port for Cloud Run compatibility
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
